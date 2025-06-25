@@ -23,7 +23,6 @@ const linkSchema = new mongoose.Schema({
         trim: true,
         validate: {
             validator: function (url) {
-                // Basic URL validation
                 const urlPattern = /^(https?:\/\/)?([\da-z\.-]+)\.([a-z\.]{2,6})([\/\w \.-]*)*\/?$/;
                 return urlPattern.test(url);
             },
@@ -95,19 +94,16 @@ const linkSchema = new mongoose.Schema({
     toObject: { virtuals: true }
 });
 
-// Indexes for better query performance
 linkSchema.index({ userId: 1, createdAt: -1 });
 linkSchema.index({ shortCode: 1 });
 linkSchema.index({ customSlug: 1 });
 linkSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 
-// Pre-save middleware to generate short code if not provided
 linkSchema.pre('save', function (next) {
     if (!this.shortCode) {
         this.shortCode = nanoid(8);
     }
 
-    // Ensure originalUrl has protocol
     if (this.originalUrl && !this.originalUrl.startsWith('http')) {
         this.originalUrl = 'https://' + this.originalUrl;
     }
@@ -115,7 +111,6 @@ linkSchema.pre('save', function (next) {
     next();
 });
 
-// Instance method to get full short URL
 linkSchema.methods.getShortUrl = function () {
     const baseUrl = process.env.BASE_URL || 'http://localhost:5000';
     const code = this.customSlug || this.shortCode;
@@ -123,7 +118,6 @@ linkSchema.methods.getShortUrl = function () {
     return `${baseUrl}/r/${code}`;
 };
 
-// Instance method to record a click
 linkSchema.methods.recordClick = async function (clickData = {}) {
     const click = {
         timestamp: new Date(),
@@ -146,7 +140,6 @@ linkSchema.methods.recordClick = async function (clickData = {}) {
     return this;
 };
 
-// Static method to find by short code or custom slug
 linkSchema.statics.findByCode = function (code) {
     return this.findOne({
         $or: [
@@ -161,7 +154,6 @@ linkSchema.statics.findByCode = function (code) {
     });
 };
 
-// Static method to get user's link analytics
 linkSchema.statics.getUserAnalytics = async function (userId) {
     const result = await this.aggregate([
         { $match: { userId: mongoose.Types.ObjectId(userId) } },
@@ -196,7 +188,6 @@ linkSchema.statics.getUserAnalytics = async function (userId) {
     return result[0] || { totalLinks: 0, totalClicks: 0, activeLinks: 0 };
 };
 
-// Virtual for click analytics
 linkSchema.virtual('clicksToday').get(function () {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -215,7 +206,6 @@ linkSchema.virtual('clicksThisWeek').get(function () {
     ).length;
 });
 
-// Transform JSON output
 linkSchema.methods.toJSON = function () {
     const link = this.toObject({ virtuals: true });
     delete link.__v;
