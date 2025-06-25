@@ -3,7 +3,6 @@ const { validationResult } = require('express-validator');
 const { nanoid } = require('nanoid');
 
 const linkController = {
-    // Create a new short link
     createLink: async (req, res) => {
         try {
             const errors = validationResult(req);
@@ -18,10 +17,8 @@ const linkController = {
             const { originalUrl, customSlug, title, description, tags, expiresAt } = req.body;
             const userId = req.user._id;
 
-            // Log incoming data for debugging
             console.log('Creating link with data:', { originalUrl, customSlug, title, description, tags, expiresAt, userId });
 
-            // Check for existing customSlug
             if (customSlug) {
                 const existingLink = await Link.findOne({
                     $or: [{ customSlug }, { shortCode: customSlug }]
@@ -34,15 +31,15 @@ const linkController = {
                 }
             }
 
-            let shortCode = customSlug || nanoid(10); // Use 10 characters for lower collision chance
+            let shortCode = customSlug || nanoid(10); 
             let isUnique = false;
             let attempts = 0;
-            const maxAttempts = 10; // Increased attempts for reliability
+            const maxAttempts = 10; 
 
             while (!isUnique && attempts < maxAttempts) {
-                const existing = await Link.findOne({ shortCode }).lean(); // Use lean() for performance
+                const existing = await Link.findOne({ shortCode }).lean(); 
                 if (!existing) isUnique = true;
-                else shortCode = nanoid(10); // Regenerate on collision
+                else shortCode = nanoid(10); 
                 attempts++;
             }
 
