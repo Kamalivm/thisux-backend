@@ -18,7 +18,7 @@ const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cors({
-    origin: process.env.FRONTEND_URL || 'https://thisux-frontend.netlify.app/',
+    origin: process.env.FRONTEND_URL || 'https://thisux-frontend.netlify.app',
     credentials: true
 }));
 app.use(helmet());
@@ -61,5 +61,5 @@ app.listen(PORT, () => {
     console.log(`📱 Frontend URL: ${process.env.FRONTEND_URL || 'https://thisux-frontend.netlify.app/'}`);
     console.log(`🔗 API Base URL: ${process.env.BASE_URL || 'https://thisux-backend.onrender.com'}/api`);
     mongoose.connection.on('error', (err) => console.error('MongoDB error:', err));
-mongoose.connection.on('disconnected', () => console.error('MongoDB disconnected'));
+    mongoose.connection.on('disconnected', () => console.error('MongoDB disconnected'));
 });
