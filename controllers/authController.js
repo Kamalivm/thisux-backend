@@ -2,8 +2,10 @@ const User = require('../models/User');
 const { validationResult } = require('express-validator');
 
 const authController = {
+    // Register new user
     register: async (req, res) => {
         try {
+            // Check for validation errors
             const errors = validationResult(req);
             if (!errors.isEmpty()) {
                 return res.status(400).json({
@@ -15,6 +17,7 @@ const authController = {
 
             const { name, email, password } = req.body;
 
+            // Check if user already exists
             const existingUser = await User.findOne({ email });
             if (existingUser) {
                 return res.status(409).json({
@@ -23,6 +26,7 @@ const authController = {
                 });
             }
 
+            // Create new user
             const user = new User({
                 name: name.trim(),
                 email: email.toLowerCase().trim(),
@@ -31,8 +35,10 @@ const authController = {
 
             await user.save();
 
+            // Generate token
             const token = user.generateAuthToken();
 
+            // Update login stats
             await user.updateLoginStats();
 
             res.status(201).json({
@@ -58,6 +64,7 @@ const authController = {
         }
     },
 
+    // Login user
     login: async (req, res) => {
         try {
             // Check for validation errors
@@ -72,6 +79,7 @@ const authController = {
 
             const { email, password } = req.body;
 
+            // Find user with password field
             const user = await User.findByEmailWithPassword(email.toLowerCase().trim());
             if (!user) {
                 return res.status(401).json({
@@ -80,6 +88,7 @@ const authController = {
                 });
             }
 
+            // Check if user is active
             if (!user.isActive) {
                 return res.status(401).json({
                     success: false,
@@ -87,6 +96,7 @@ const authController = {
                 });
             }
 
+            // Verify password
             const isMatch = await user.comparePassword(password);
             if (!isMatch) {
                 return res.status(401).json({
@@ -95,8 +105,10 @@ const authController = {
                 });
             }
 
+            // Generate token
             const token = user.generateAuthToken();
 
+            // Update login stats
             await user.updateLoginStats();
 
             res.json({
@@ -123,6 +135,7 @@ const authController = {
         }
     },
 
+    // Get current user profile
     getProfile: async (req, res) => {
         try {
             const user = await User.findById(req.user._id);
@@ -151,8 +164,10 @@ const authController = {
         }
     },
 
+    // Update user profile
     updateProfile: async (req, res) => {
         try {
+            // Check for validation errors
             const errors = validationResult(req);
             if (!errors.isEmpty()) {
                 return res.status(400).json({
@@ -196,6 +211,7 @@ const authController = {
     // Change password
     changePassword: async (req, res) => {
         try {
+            // Check for validation errors
             const errors = validationResult(req);
             if (!errors.isEmpty()) {
                 return res.status(400).json({
@@ -208,8 +224,10 @@ const authController = {
             const { currentPassword, newPassword } = req.body;
             const userId = req.user._id;
 
+            // Get user with password
             const user = await User.findById(userId).select('+password');
 
+            // Verify current password
             const isMatch = await user.comparePassword(currentPassword);
             if (!isMatch) {
                 return res.status(400).json({
@@ -218,6 +236,7 @@ const authController = {
                 });
             }
 
+            // Update password
             user.password = newPassword;
             await user.save();
 
@@ -235,6 +254,7 @@ const authController = {
         }
     },
 
+    // Verify token
     verifyToken: async (req, res) => {
         try {
             res.json({

@@ -3,6 +3,7 @@ const { validationResult } = require('express-validator');
 const { nanoid } = require('nanoid');
 
 const linkController = {
+    // Create a new short link
     createLink: async (req, res) => {
         try {
             const errors = validationResult(req);
@@ -17,8 +18,10 @@ const linkController = {
             const { originalUrl, customSlug, title, description, tags, expiresAt } = req.body;
             const userId = req.user._id;
 
+            // Log incoming data for debugging
             console.log('Creating link with data:', { originalUrl, customSlug, title, description, tags, expiresAt, userId });
 
+            // Check for existing customSlug
             if (customSlug) {
                 const existingLink = await Link.findOne({
                     $or: [{ customSlug }, { shortCode: customSlug }]
@@ -31,15 +34,15 @@ const linkController = {
                 }
             }
 
-            let shortCode = customSlug || nanoid(10); 
+            let shortCode = customSlug || nanoid(10); // Use 10 characters for lower collision chance
             let isUnique = false;
             let attempts = 0;
-            const maxAttempts = 10; 
+            const maxAttempts = 10; // Increased attempts for reliability
 
             while (!isUnique && attempts < maxAttempts) {
-                const existing = await Link.findOne({ shortCode }).lean(); 
+                const existing = await Link.findOne({ shortCode }).lean(); // Use lean() for performance
                 if (!existing) isUnique = true;
-                else shortCode = nanoid(10); 
+                else shortCode = nanoid(10); // Regenerate on collision
                 attempts++;
             }
 
@@ -126,7 +129,7 @@ const linkController = {
 
             const linksWithUrls = links.map(link => ({
                 ...link,
-                shortUrl: `${process.env.BASE_URL || 'http://localhost:5000'}/r/${link.customSlug || link.shortCode}`
+                shortUrl: `${process.env.BASE_URL || 'https://thisux-backend.onrender.com'}/r/${link.customSlug || link.shortCode}`
             }));
 
             res.json({

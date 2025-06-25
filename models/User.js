@@ -25,7 +25,7 @@ const userSchema = new mongoose.Schema({
         type: String,
         required: [true, 'Password is required'],
         minlength: [6, 'Password must be at least 6 characters long'],
-        select: false 
+        select: false // Don't include password in queries by default
     },
     isActive: {
         type: Boolean,
@@ -42,8 +42,10 @@ const userSchema = new mongoose.Schema({
     timestamps: true
 });
 
+// Index for better query performance
 userSchema.index({ email: 1 });
 
+// Hash password before saving
 userSchema.pre('save', async function (next) {
     // Only hash the password if it has been modified (or is new)
     if (!this.isModified('password')) return next();
@@ -58,10 +60,12 @@ userSchema.pre('save', async function (next) {
     }
 });
 
+// Instance method to check password
 userSchema.methods.comparePassword = async function (candidatePassword) {
     return await bcrypt.compare(candidatePassword, this.password);
 };
 
+// Instance method to generate JWT token
 userSchema.methods.generateAuthToken = function () {
     return jwt.sign(
         {
@@ -73,16 +77,19 @@ userSchema.methods.generateAuthToken = function () {
     );
 };
 
+// Update login stats
 userSchema.methods.updateLoginStats = async function () {
     this.lastLogin = new Date();
     this.loginCount += 1;
     await this.save();
 };
 
+// Static method to find user by email with password
 userSchema.statics.findByEmailWithPassword = function (email) {
     return this.findOne({ email }).select('+password');
 };
 
+// Transform JSON output
 userSchema.methods.toJSON = function () {
     const user = this.toObject();
     delete user.password;
