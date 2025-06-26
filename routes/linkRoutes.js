@@ -2,6 +2,7 @@ const express = require('express');
 const { check } = require('express-validator');
 const auth = require('../middleware/auth');
 const linkController = require('../controllers/linkController');
+const mongoose = require('mongoose');
 
 const router = express.Router();
 
@@ -31,6 +32,10 @@ router.post(
     async (req, res) => {
         try {
             const { id } = req.params;
+            // Validate ObjectId
+            if (!mongoose.Types.ObjectId.isValid(id)) {
+                return res.status(400).json({ success: false, message: 'Invalid link ID' });
+            }
             const link = await Link.findOne({ _id: id, userId: req.user._id });
             if (!link) {
                 return res.status(404).json({ success: false, message: 'Link not found' });
