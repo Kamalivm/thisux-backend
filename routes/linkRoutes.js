@@ -22,38 +22,32 @@ router.post(
     ],
     linkController.createLink
 );
-router.post(
-    '/:id/click',
-    auth,
-    [
-        check('ipAddress').optional().isString(),
-        check('userAgent').optional().isString()
-    ],
-    async (req, res) => {
-        try {
-            const { id } = req.params;
-            // Validate ObjectId
-            if (!mongoose.Types.ObjectId.isValid(id)) {
-                return res.status(400).json({ success: false, message: 'Invalid link ID' });
-            }
-            const link = await Link.findOne({ _id: id, userId: req.user._id });
-            if (!link) {
-                return res.status(404).json({ success: false, message: 'Link not found' });
-            }
-            await link.recordClick({
-                ipAddress: req.body.ipAddress || req.ip,
-                userAgent: req.body.userAgent || req.get('User-Agent'),
-                referer: req.get('Referer') || '',
-                country: req.headers['cf-ipcountry'] || '',
-                city: '' // Add geo-IP service if needed
-            });
-            res.json({ success: true, message: 'Click recorded' });
-        } catch (error) {
-            console.error('Record click error:', error);
-            res.status(500).json({ success: false, message: 'Failed to record click', error: process.env.NODE_ENV === 'development' ? error.message : undefined });
+
+app.post('/api/links/:id/click', async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        // Validate ObjectId
+        if (!mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ error: 'Invalid link ID' });
         }
+
+        const link = await Link.findByIdAndUpdate(
+            id,
+            { $inc: { clicks: 1 } },
+            { new: true }
+        );
+
+        if (!link) {
+            return res.status(404).json({ error: 'Link not found' });
+        }
+
+        res.json(link);
+    } catch (error) {
+        console.error('Click tracking error:', error);
+        res.status(500).json({ error: 'Internal server error' });
     }
-);
+});
 
 router.get('/', auth, linkController.getUserLinks);
 
