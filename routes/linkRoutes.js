@@ -1,77 +1,213 @@
 const express = require('express');
-const { check } = require('express-validator');
-const auth = require('../middleware/auth');
-const linkController = require('../controllers/linkController');
-const mongoose = require('mongoose');
-
 const router = express.Router();
+const mongoose = require('mongoose');
+const Link = require('../models/Link'); // Adjust path as needed
+const auth = require('../middleware/auth'); // Adjust path as needed
 
-router.post(
-    '/',
-    [
-        auth,
-        check('originalUrl', 'Valid URL is required').isURL(),
-        check('customSlug', 'Custom slug must be 3-50 characters and contain only letters, numbers, hyphens, or underscores')
-            .optional()
-            .isLength({ min: 3, max: 50 })
-            .matches(/^[a-zA-Z0-9-_]+$/),
-        check('title', 'Title cannot exceed 200 characters').optional().isLength({ max: 200 }),
-        check('description', 'Description cannot exceed 500 characters').optional().isLength({ max: 500 }),
-        check('tags', 'Tags must be an array of strings').optional().isArray(),
-        check('expiresAt', 'Expires at must be a valid date').optional().isISO8601()
-    ],
-    linkController.createLink
-);
-
-app.post('/api/links/:id/click', async (req, res) => {
+// Get all links for a user
+router.get('/', auth, async (req, res) => {
     try {
-        const { id } = req.params;
-
-        // Validate ObjectId
-        if (!mongoose.Types.ObjectId.isValid(id)) {
-            return res.status(400).json({ error: 'Invalid link ID' });
-        }
-
-        const link = await Link.findByIdAndUpdate(
-            id,
-            { $inc: { clicks: 1 } },
-            { new: true }
-        );
-
-        if (!link) {
-            return res.status(404).json({ error: 'Link not found' });
-        }
-
-        res.json(link);
+        const links = await Link.find({ user: req.user.id }).sort({ createdAt: -1 });
+        res.json({
+            success: true,
+            data: { links }
+        });
     } catch (error) {
-        console.error('Click tracking error:', error);
-        res.status(500).json({ error: 'Internal server error' });
+        console.error('Error fetching links:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to fetch links'
+        });
     }
 });
 
-router.get('/', auth, linkController.getUserLinks);
+// Record click (this is line 26 where the error occurs)
+router.post('/:id/click', auth, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { ipAddress, userAgent } = req.body;
+        
+        // Validate ObjectId
+        if (!mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid link ID'
+            });
+        }
+        
+        // Find and update the link
+        const link = await Link.findOneAndUpdate(
+            { _id: id, user: req.user.id }, // Ensure user owns the link
+            { 
+                $inc: { clicks: 1 },
+                $push: {
+                    clickHistory: {
+                        timestamp: new Date(),
+                        ipAddress: ipAddress || 'unknown',
+                        userAgent: userAgent || 'unknown'
+                    }
+                }
+            },
+            { new: true }
+        );
+        
+        if (!link) {
+            return res.status(404).json({
+                success: false,
+                message: 'Link not found'
+            });
+        }
+        
+        res.json({
+            success: true,
+            message: 'Click recorded successfully',
+            data: { link }
+        });
+    } catch (error) {
+        console.error('Click tracking error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to record click'
+        });
+    }
+});
 
-router.get('/:id', auth, linkController.getLinkById);
+// Get single link
+router.get('/:id', auth, async (req, res) => {
+    try {
+        const { id } = req.params;
+        
+        if (!mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid link ID'
+            });
+        }
+        
+        const link = await Link.findOne({ _id: id, user: req.user.id });
+        
+        if (!link) {
+            return res.status(404).json({
+                success: false,
+                message: 'Link not found'
+            });
+        }
+        
+        res.json({
+            success: true,
+            data: { link }
+        });
+    } catch (error) {
+        console.error('Error fetching link:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to fetch link'
+        });
+    }
+});
 
-router.put(
-    '/:id',
-    [
-        auth,
-        check('originalUrl', 'Valid URL is required').optional().isURL(),
-        check('customSlug', 'Custom slug must be 3-50 characters and contain only letters, numbers, hyphens, or underscores')
-            .optional()
-            .isLength({ min: 3, max: 50 })
-            .matches(/^[a-zA-Z0-9-_]+$/),
-        check('title', 'Title cannot exceed 200 characters').optional().isLength({ max: 200 }),
-        check('description', 'Description cannot exceed 500 characters').optional().isLength({ max: 500 }),
-        check('tags', 'Tags must be an array of strings').optional().isArray(),
-        check('expiresAt', 'Expires at must be a valid date').optional().isISO8601()
-    ],
-    linkController.updateLink
-);
+// Create new link
+router.post('/', auth, async (req, res) => {
+    try {
+        const { originalUrl, title, description } = req.body;
+        
+        const link = new Link({
+            originalUrl,
+            title,
+            description,
+            user: req.user.id,
+            clicks: 0,
+            clickHistory: []
+        });
+        
+        await link.save();
+        
+        res.status(201).json({
+            success: true,
+            message: 'Link created successfully',
+            data: { link }
+        });
+    } catch (error) {
+        console.error('Error creating link:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to create link'
+        });
+    }
+});
 
-router.delete('/:id', auth, linkController.deleteLink);
+// Update link
+router.put('/:id', auth, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { title, description } = req.body;
+        
+        if (!mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid link ID'
+            });
+        }
+        
+        const link = await Link.findOneAndUpdate(
+            { _id: id, user: req.user.id },
+            { title, description },
+            { new: true }
+        );
+        
+        if (!link) {
+            return res.status(404).json({
+                success: false,
+                message: 'Link not found'
+            });
+        }
+        
+        res.json({
+            success: true,
+            message: 'Link updated successfully',
+            data: { link }
+        });
+    } catch (error) {
+        console.error('Error updating link:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to update link'
+        });
+    }
+});
 
-router.get('/:id/analytics', auth, linkController.getLinkAnalytics);
+// Delete link
+router.delete('/:id', auth, async (req, res) => {
+    try {
+        const { id } = req.params;
+        
+        if (!mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid link ID'
+            });
+        }
+        
+        const link = await Link.findOneAndDelete({ _id: id, user: req.user.id });
+        
+        if (!link) {
+            return res.status(404).json({
+                success: false,
+                message: 'Link not found'
+            });
+        }
+        
+        res.json({
+            success: true,
+            message: 'Link deleted successfully'
+        });
+    } catch (error) {
+        console.error('Error deleting link:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to delete link'
+        });
+    }
+});
 
 module.exports = router;
